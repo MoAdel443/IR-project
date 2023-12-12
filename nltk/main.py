@@ -19,7 +19,7 @@ stopWords.remove('where')  # delete these words from stop list
 
 files = natsorted(os.listdir("files"))  # reading files sorted
 
-# print(f"Your collection consist of : {files} \n")
+print(f"Your collection consist of : {files} \n")
 
 
 # tokenization
@@ -35,10 +35,10 @@ for file in files:
             terms.append(token)
     documents.append(terms)
 
-# print("Tokens")
+print("Tokens")
 for i in documents:
-    pass
-    # print(i)
+    # pass
+    print(i)
 
 
 # Stemming
@@ -52,11 +52,10 @@ for document in documents:
 
     stemmed_documents.append(stemmed_terms)
 
-# print("Stemmed Terms")
+print("Stemmed Terms")
 for i in stemmed_documents:
-    pass
-    # print(i)
-# print("\n")
+    print(i)
+print("\n")
 
 
 # positional index
@@ -64,7 +63,7 @@ for i in stemmed_documents:
 document_number = 1
 positional_index = {}
 
-for document in documents:
+for document in stemmed_documents:
 
     for position, term in enumerate(document):
 
@@ -86,12 +85,10 @@ for document in documents:
             positional_index[term][1][document_number] = [position]  # 1 bcz 0 is the frequency
 
     document_number += 1
-
-# print(positional_index, "\n")
+print(positional_index, "\n")
 
 
 # phrase query
-
 def phrase_query(q):
     phrase_list = [[] for i in range(len(files))]  # create 10 empty lists for docs
 
@@ -117,9 +114,8 @@ def phrase_query(q):
 
 
 # TF and Weighted TF
-
 all_words = []
-for document in documents:
+for document in stemmed_documents:
     for word in document:
         all_words.append(word)
 
@@ -132,16 +128,16 @@ def get_term_frequency(doc):
     return words_found
 
 
-term_freq = pd.DataFrame(get_term_frequency(documents[0]).values(), index=get_term_frequency(documents[0]).keys())
+term_freq = pd.DataFrame(
+    get_term_frequency(stemmed_documents[0]).values(),
+    index=get_term_frequency(stemmed_documents[0]).keys())
 
-for i in range(1, len(documents)):
-    term_freq[i] = get_term_frequency(documents[i]).values()
+for i in range(1, len(stemmed_documents)):
+    term_freq[i] = get_term_frequency(stemmed_documents[i]).values()
 
 term_freq.columns = ['doc' + str(i) for i in range(1, 11)]
-
-
-# print("term frequency")
-# print(term_freq, "\n")
+print("term frequency")
+print(term_freq, "\n")
 
 
 def get_weighted_term_freq(x):
@@ -151,11 +147,11 @@ def get_weighted_term_freq(x):
         return 0
 
 
-for i in range(1, len(documents) + 1):
+for i in range(1, len(stemmed_documents) + 1):
     term_freq['doc' + str(i)] = term_freq['doc' + str(i)].apply(get_weighted_term_freq)
 
-# print("term frequency")
-# print(term_freq, "\n")
+print("term frequency")
+print(term_freq, "\n")
 
 # Doc Frequency
 
@@ -169,15 +165,15 @@ for i in range(len(term_freq)):
     doc_freq.loc[i, 'IDF'] = math.log(n_over_df, 10)
 
 doc_freq.index = term_freq.index
-# print(doc_freq, "\n\n")
+print(doc_freq, "\n\n")
+
 
 tf_idf = term_freq.multiply(doc_freq['IDF'], axis=0)
+print("TF.IDF")
+print(tf_idf, "\n")
 
-# print("TF.IDF")
-# print(tf_idf, "\n")
 
 # doc len and normalized tf.idf
-
 document_length = pd.DataFrame()
 
 
@@ -187,8 +183,8 @@ def get_doc_length(col):
 
 for column in tf_idf.columns:
     document_length.loc[0, column + "_length"] = get_doc_length(column)
+print(document_length)
 
-# print(document_length)
 
 normalized_tf_idf = pd.DataFrame()
 
@@ -202,16 +198,10 @@ def get_normalized_tf_idf(col, x):
 
 for column in tf_idf.columns:
     normalized_tf_idf[column] = tf_idf[column].apply(lambda x: get_normalized_tf_idf(column, x))
-
-
-# print(normalized_tf_idf)
+print(normalized_tf_idf)
 
 
 # Query
-
-# q = "fools fear in rush"
-
-
 def rank(q):
     words_found = phrase_query(q)
     if not words_found:
@@ -266,15 +256,76 @@ def rank(q):
         print("\n--------------------")
 
 
+def boolOp (q1, op, q2):
+    x1 = phrase_query(q1)
+    x2 = phrase_query(q2)
+    if op == "and":
+        res = [x  for x in x1 if x in x2 ]
+        print(res)
+    elif op == "or":
+        res = x1+x2
+        newRes = list(set(res))
+        print(newRes)
+    elif op == "andNot":
+        x3 = ['doc1', 'doc2', 'doc3', 'doc4', 'doc5', 'doc6', 'doc7', 'doc8', 'doc9','doc10']
+        itemsNotInX2 = [item for item in x3 if item not in x2]
+        res = [x for x in x1 if x in itemsNotInX2]
+        print(res)
+
+
+def StemmQuery (query):             # take query as input make steem on it and
+    query_term = word_tokenize(query)
+    stemmed_terms_query = []
+    q=''
+    for term in query_term:
+        stemmed_terms_query.append(stemmer.stem(term))
+    for term in stemmed_terms_query:
+        q += f"{term} "
+    q =q[:-1]
+    return q
+
+
 # running query at infinite times
 flag = True
+booleanFlag = False
 while flag:
     print("\n1- insert Query\n2- Exit")
     op = input()
     if op == "1":
         query = input("enter query : ")
-        rank(query)
-        flag = True
+        query_term = word_tokenize(query)
+        for term in query_term:
+            if term == 'and' or term == 'or' or term == 'andNot':
+                   booleanFlag = True
+        if booleanFlag == False :           # not bool query
+            q = StemmQuery(query)
+
+            print(q)
+            rank(q)
+            flag = True
+        else:
+            q1 = ""
+            q2 = ""
+            op = ''
+            for i in range(len(query_term)):
+                if query_term[i] == 'and' or query_term[i] == 'or' or query_term[i] == 'andNot':
+                    op = query_term[i]
+                    x = 0
+                    y = i+1
+                    while x < i:
+                        q1 += f"{query_term[x]} "
+                        x += 1
+                    q1 = q1[:-1]
+                    while y > i:
+                        if y >= len(query_term):
+                            break
+                        q2 += f"{query_term[y]} "
+                        y += 1
+                    q2 = q2[:-1]
+            q1 = StemmQuery(q1)
+            q2 = StemmQuery(q2)
+            boolOp(q1, op, q2)
+
     else:
         print("Exiting")
         flag = False
