@@ -17,8 +17,9 @@ stopWords.remove('to')
 stopWords.remove('in')
 stopWords.remove('where')  # delete these words from stop list
 
-files = natsorted(os.listdir("files"))  # reading files sorted
 
+# preprocessing
+files = natsorted(os.listdir("files"))  # reading files sorted
 print(f"Your collection consist of : {files} \n")
 
 
@@ -34,7 +35,6 @@ for file in files:
         if token not in stopWords:  # removing stopwords
             terms.append(token)
     documents.append(terms)
-
 print("Tokens")
 for i in documents:
     # pass
@@ -51,7 +51,6 @@ for document in documents:
         stemmed_terms.append(stemmer.stem(term))
 
     stemmed_documents.append(stemmed_terms)
-
 print("Stemmed Terms")
 for i in stemmed_documents:
     print(i)
@@ -64,7 +63,6 @@ document_number = 1
 positional_index = {}
 
 for document in stemmed_documents:
-
     for position, term in enumerate(document):
 
         # first time to add term
@@ -85,6 +83,8 @@ for document in stemmed_documents:
             positional_index[term][1][document_number] = [position]  # 1 bcz 0 is the frequency
 
     document_number += 1
+
+
 print(positional_index, "\n")
 
 
@@ -96,7 +96,6 @@ def phrase_query(q):
         if word not in positional_index:
             print("Wrong Query")
         else:
-
             for key in positional_index[word][1].keys():
 
                 # check if first word and sec exist in any file
@@ -107,7 +106,7 @@ def phrase_query(q):
                 else:
                     phrase_list[key - 1].append(positional_index[word][1][key][0])
     positions = []
-    for pos, list in enumerate(phrase_list, start=1):  # 2 here bcz doc start from 0 and  enumerate start from 0
+    for pos, list in enumerate(phrase_list, start=1):  # 1 here bcz doc start from 0 and  enumerate start from 0
         if len(list) == len(q.split()):
             positions.append('doc' + str(pos))
     return positions
@@ -128,14 +127,14 @@ def get_term_frequency(doc):
     return words_found
 
 
-term_freq = pd.DataFrame(
-    get_term_frequency(stemmed_documents[0]).values(),
-    index=get_term_frequency(stemmed_documents[0]).keys())
+term_freq = pd.DataFrame(get_term_frequency(stemmed_documents[0]).values(), index=get_term_frequency(stemmed_documents[0]).keys())
+
 
 for i in range(1, len(stemmed_documents)):
     term_freq[i] = get_term_frequency(stemmed_documents[i]).values()
 
 term_freq.columns = ['doc' + str(i) for i in range(1, 11)]
+
 print("term frequency")
 print(term_freq, "\n")
 
@@ -153,25 +152,26 @@ for i in range(1, len(stemmed_documents) + 1):
 print("term frequency")
 print(term_freq, "\n")
 
-# Doc Frequency
+
+# Doc Frequency (DF)
 
 doc_freq = pd.DataFrame(columns=['DF', 'IDF'])
 
 for i in range(len(term_freq)):
-    frequency = term_freq.iloc[i].values.sum()
+    frequency = len(positional_index[term_freq.index[i]][1])
+
 
     doc_freq.loc[i, 'DF'] = frequency
+
     n_over_df = (10.0 / frequency)
     doc_freq.loc[i, 'IDF'] = math.log(n_over_df, 10)
 
 doc_freq.index = term_freq.index
 print(doc_freq, "\n\n")
 
-
 tf_idf = term_freq.multiply(doc_freq['IDF'], axis=0)
 print("TF.IDF")
 print(tf_idf, "\n")
-
 
 # doc len and normalized tf.idf
 document_length = pd.DataFrame()
@@ -182,8 +182,9 @@ def get_doc_length(col):
 
 
 for column in tf_idf.columns:
-    document_length.loc[0, column + "_length"] = get_doc_length(column)
-print(document_length)
+    document_length.loc["length", column + "_length"] = get_doc_length(column)
+
+print(document_length.transpose())
 
 
 normalized_tf_idf = pd.DataFrame()
@@ -213,35 +214,32 @@ def rank(q):
 
         query["W_TF"] = query['TF'].apply(lambda x: get_weighted_term_freq(x))
 
-        doc1 = normalized_tf_idf.multiply(query["W_TF"], axis=0)
-
-        query['IDF'] = doc_freq['IDF'] * query['W_TF']
+        query['IDF'] = doc_freq['IDF']
 
         query['TF_IDF'] = query['TF'] * query["IDF"]
 
         query["normalized"] = 0
         for i in range(len(query)):
-            query["normalized"].iloc[i] = float(query['IDF'].iloc[i]) / math.sqrt(sum(query['IDF'].values ** 2))
+            query["normalized"].iloc[i] = float(query['TF_IDF'].iloc[i]) / math.sqrt(sum(query['TF_IDF'].values ** 2))
 
         print(query.loc[q.split()])
         print("\n")
-
-        doc2 = doc1.multiply(query["normalized"], axis=0)
+        doc = normalized_tf_idf.multiply(query["normalized"], axis=0)
 
         scores = {}
-        for col in doc2.columns:
-            if 0 in doc2[col].loc[q.split()].values:
+        for col in doc.columns:
+            if 0 in doc[col].loc[q.split()].values:
                 pass
             else:
-                scores[col] = doc2[col].sum()
+                scores[col] = doc[col].sum()
 
-        doc_result = doc2[list(scores.keys())].loc[q.split()]
+        doc_result = doc[list(scores.keys())].loc[q.split()]
 
         print(doc_result)
         print("\nSUM")
         print(doc_result.sum())
 
-        query_length = math.sqrt(sum([x ** 2 for x in query["IDF"].loc[q.split()]]))
+        query_length = math.sqrt(sum([x ** 2 for x in query["TF_IDF"].loc[q.split()]]))
 
         print("\nQuery Length : " + str(query_length))
 
@@ -256,32 +254,41 @@ def rank(q):
         print("\n--------------------")
 
 
-def boolOp (q1, op, q2):
+def boolOp(q1, op, q2):
     x1 = phrase_query(q1)
     x2 = phrase_query(q2)
     if op == "and":
-        res = [x  for x in x1 if x in x2 ]
-        print(res)
+        if q2 == '' or q1 == '':
+            print("complete your query!!")
+        else:
+            res = [x for x in x1 if x in x2]
+            print(res)
     elif op == "or":
-        res = x1+x2
-        newRes = list(set(res))
-        print(newRes)
+        if q2 == '' or q1 == '':
+            print("complete your query!!")
+        else:
+            res = x1 + x2
+            newRes = list(set(res))
+            print(newRes)
     elif op == "andNot":
-        x3 = ['doc1', 'doc2', 'doc3', 'doc4', 'doc5', 'doc6', 'doc7', 'doc8', 'doc9','doc10']
-        itemsNotInX2 = [item for item in x3 if item not in x2]
-        res = [x for x in x1 if x in itemsNotInX2]
-        print(res)
+        if q2 == '' or q1 == '':
+            print("complete your query!!")
+        else:
+            x3 = ['doc1', 'doc2', 'doc3', 'doc4', 'doc5', 'doc6', 'doc7', 'doc8', 'doc9', 'doc10']
+            itemsNotInX2 = [item for item in x3 if item not in x2]
+            res = [x for x in x1 if x in itemsNotInX2]
+            print(res)
 
 
-def StemmQuery (query):             # take query as input make steem on it and
+def stemmQuery(query):  # take query as input make steem on it and
     query_term = word_tokenize(query)
     stemmed_terms_query = []
-    q=''
-    for term in query_term:
-        stemmed_terms_query.append(stemmer.stem(term))
+    q = ''
+    for token in query_term:
+        stemmed_terms_query.append(stemmer.stem(token))
     for term in stemmed_terms_query:
         q += f"{term} "
-    q =q[:-1]
+    q = q[:-1]
     return q
 
 
@@ -296,11 +303,9 @@ while flag:
         query_term = word_tokenize(query)
         for term in query_term:
             if term == 'and' or term == 'or' or term == 'andNot':
-                   booleanFlag = True
-        if booleanFlag == False :           # not bool query
-            q = StemmQuery(query)
-
-            print(q)
+                booleanFlag = True
+        if booleanFlag is False:  # not bool query
+            q = stemmQuery(query)
             rank(q)
             flag = True
         else:
@@ -311,20 +316,20 @@ while flag:
                 if query_term[i] == 'and' or query_term[i] == 'or' or query_term[i] == 'andNot':
                     op = query_term[i]
                     x = 0
-                    y = i+1
+                    y = i + 1
                     while x < i:
                         q1 += f"{query_term[x]} "
                         x += 1
                     q1 = q1[:-1]
-                    while y > i:
-                        if y >= len(query_term):
-                            break
+                    while y > i and y < len(query_term):
                         q2 += f"{query_term[y]} "
                         y += 1
                     q2 = q2[:-1]
-            q1 = StemmQuery(q1)
-            q2 = StemmQuery(q2)
+            q1 = stemmQuery(q1)
+            q2 = stemmQuery(q2)
             boolOp(q1, op, q2)
+            booleanFlag = False
+
 
     else:
         print("Exiting")
